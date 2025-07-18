@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { deleteFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
@@ -232,11 +232,11 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 
     return res
     .status(200)
-    .json(
+    .json(new ApiResponse(
         200,
         {},
         "Password updated successfully"
-    );
+    ));
 
 });
 
@@ -249,11 +249,11 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 
     return res
     .status(200)
-    .json(
+    .json(new ApiResponse(
         200,
         user,
         "User fetched successfully"
-    );
+    ));
 
 });
 
@@ -261,10 +261,10 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     const {fullName, email} = req.body;
 
     if (!fullName || !email) {
-        throw new ApiError(400, "All feild required");
+        throw new ApiError(400, "All fields required");
     }
 
-    const user = User.findByIdAndUpdate(
+    const user = await User.findByIdAndUpdate(
         req?.user?._id,
         {
             $set: {
@@ -293,6 +293,10 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Avatar file is missing");
     }
 
+    const oldAvatar = req.user.avatar;
+    const oldAvatarParts = oldAvatar.split('/');
+    const oldAvatarPublicId = oldAvatarParts[oldAvatarParts.length - 1].split('.')[0];
+
     const avatar = await uploadOnCloudinary(avatarLocalPath);
 
     if (!avatar.url) {
@@ -303,11 +307,17 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         req?.user?._id,
         {
             $set: {
-                avatar
+                avatar: avatar.url
             }
         },
         {new: true}
     ).select("-password -refreshToken");
+
+    if (avatar.url !== user?.avatar) {
+        throw new ApiError(500, "Error updating avatar image");
+    }
+
+    await deleteFromCloudinary(oldAvatarPublicId);
 
     return res
     .status(200)
@@ -327,6 +337,10 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Cover image file is missing");
     }
 
+    const oldCoverImage = req.user.coverImage;
+    const oldCoverImageParts = oldCoverImage.split('/');
+    const oldCoverImagePublicId = oldCoverImageParts[oldCoverImageParts.length - 1].split('.')[0];
+
     const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
     if (!coverImage.url) {
@@ -337,11 +351,17 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         req?.user?._id,
         {
             $set: {
-                coverImage
+                coverImage: coverImage.url
             }
         },
         {new: true}
     ).select("-password -refreshToken");
+
+    if (coverImage.url !== user?.coverImage) {
+        throw new ApiError(500, "Error updating coverImage image");
+    }
+    
+    await deleteFromCloudinary(oldCoverImagePublicId);
 
     return res
     .status(200)
@@ -393,7 +413,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
                 },
                 isSubscribed: {
                     $cond: {
-                        if: {$in: [req?.user?._id, subscribers.subscriber]}, //Chance of Error. correct by subscriptions.subscriber maybe.
+                        if: {$in: [req?.user?._id, "$subscribers.subscriber"]}, //Chance of Error. correct by subscriptions.subscriber maybe.
                         then: true,
                         else: false
                     }
@@ -426,7 +446,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         "User channel fetched successfully"
     ));
 
-})
+});
 
 const getWatchHistory = asyncHandler(async (req, res) => {
     const user = User.aggregate([
@@ -478,7 +498,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
         "User watch history fetched successfully"
     ));
 
-})
+});
 
 
 export { 
