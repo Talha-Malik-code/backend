@@ -136,11 +136,52 @@ const getLikedVideos = asyncHandler(async (req, res) => {
             }
         },
         {
+            $unwind: "$likedVideos"
+        },
+        {
             $project: {
+                _id: 0,
                 likedVideos: 1
             }
+        },
+        {
+            $replaceRoot: { newRoot: "$likedVideos" }
         }
     ]);
+
+    // const likedVideos = await Like.aggregate([
+    //     {
+    //         $match: {
+    //             likedBy: new mongoose.Types.ObjectId(req.user?._id)
+    //         }
+    //     },
+    //     {
+    //         $lookup: {
+    //             from: "videos",
+    //             localField: "video",
+    //             foreignField: "_id",
+    //             as: "video"
+    //         }
+    //     },
+    //     {
+    //         $unwind: "$video"
+    //     },
+    //     {
+    //         $lookup: {
+    //             from: "users",
+    //             localField: "video.owner",
+    //             foreignField: "_id",
+    //             as: "video.owner",
+    //             pipeline: [{ $project: { fullName: 1, username: 1, avatar: 1 } }]
+    //         }
+    //     },
+    //     {
+    //         $unwind: "$video.owner"
+    //     },
+    //     {
+    //         $replaceRoot: { newRoot: "$video" }
+    //     }
+    // ]);
 
     return res
     .status(200)
