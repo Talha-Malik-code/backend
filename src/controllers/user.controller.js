@@ -47,8 +47,8 @@ const registerUser = asyncHandler( async (req, res) => {
     if (existedUser) {
         throw new ApiError(409, "User with this username or email already exists!");
     }
-
-    const avatarLocalPath = req.files?.avatar[0]?.path;
+    
+    const avatarLocalPath = req?.files?.avatar[0]?.path;
     // const coverImageLocalPath = req.files?.coverImage[0]?.path;
 
     let coverImageLocalPath;
@@ -313,10 +313,6 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         {new: true}
     ).select("-password -refreshToken");
 
-    if (avatar.url !== user?.avatar) {
-        throw new ApiError(500, "Error updating avatar image");
-    }
-
     await deleteFromCloudinary(oldAvatarPublicId);
 
     return res
@@ -406,14 +402,14 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         {
             $addFields: {
                 subscribersCount: {
-                    size: "$subscribers"
+                    $size: "$subscribers"
                 },
                 channelSubscribedToCount: {
-                    size: "$subscribedTo"
+                    $size: "$subscribedTo"
                 },
                 isSubscribed: {
                     $cond: {
-                        if: {$in: [req?.user?._id, "$subscribers.subscriber"]}, //Chance of Error. correct by subscriptions.subscriber maybe.
+                        if: {$in: [new mongoose.Types.ObjectId(req?.user?._id), "$subscribers.subscriber"]}, //Chance of Error. correct by subscriptions.subscriber maybe.
                         then: true,
                         else: false
                     }
@@ -434,7 +430,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         }
     ]);
 
-    if (channel?.length) {
+    if (!channel?.length) {
         throw new ApiError(404, "Channel not exists!");
     }
 
